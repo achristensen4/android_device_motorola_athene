@@ -49,7 +49,7 @@ on init
     mkdir /persist 0771 system system
 
     # Mount point for oem partition
-    # mkdir /oem 0550 root root
+    mkdir /oem 0550 root root
 
     # Support legacy paths
     symlink /sdcard /mnt/sdcard
@@ -280,10 +280,7 @@ on boot
     # Increased technology maximums should be reflected here.
     write /proc/sys/net/core/rmem_max  8388608
     write /proc/sys/net/core/wmem_max  8388608
-
-    # Quiet binder logs
-    write /sys/module/binder/parameters/debug_mask 0x5
-
+    
     # usb driver parameter permissions
     chown root mot_tcmd /sys/module/phy_msm_usb/parameters/host_mode_disable
     chmod 0660 /sys/module/phy_msm_usb/parameters/host_mode_disable
@@ -321,8 +318,8 @@ on fs
     mount ext4 /dev/block/bootdevice/by-name/customize /customize ro discard nosuid nodev noatime nodiratime noexec defcontext=u:object_r:user_config_file:s0
 
     # This partition is used by moto for their system apps. Mounting this breaks boot for some.
-    # wait /dev/block/bootdevice/by-name/oem
-    # mount ext4 /dev/block/bootdevice/by-name/oem /oem ro nosuid nodev context=u:object_r:oemfs:s0
+    wait /dev/block/bootdevice/by-name/oem
+    mount ext4 /dev/block/bootdevice/by-name/oem /oem ro nosuid nodev context=u:object_r:oemfs:s0
 
     wait /dev/block/bootdevice/by-name/dsp
     mount ext4 /dev/block/bootdevice/by-name/dsp /dsp nosuid nodev barrier=1
@@ -439,7 +436,7 @@ on post-fs-data
 
     #Create the symlink to qcn wpa_supplicant folder for ar6000 wpa_supplicant
     mkdir /data/system 0775 system system
-    #symlink /data/misc/wifi/wpa_supplicant /data/system/wpa_supplicant
+    symlink /data/misc/wifi/wpa_supplicant /data/system/wpa_supplicant
 
     #Create directories for Location services
     mkdir /data/misc/location 0770 gps gps
@@ -567,17 +564,13 @@ on post-fs-data
 service qfintverify /sbin/qfintverify
     user root
     class core
-    oneshot
 
 service ssr_setup /system/bin/ssr_setup
-    oneshot
-    disabled
 
 service ss_ramdump /system/bin/subsystem_ramdump
     class main
     user radio
     group log sdcard_rw sdcard_r diag
-    disabled
 
 on property:persist.sys.ssr.restart_level=*
     start ssr_setup
@@ -619,17 +612,16 @@ on property:vold.decrypt=trigger_restart_framework
     start wcnss-service
 
 service cnd /system/bin/cnd
-    class late_start
+    class main
     socket cnd stream 660 root inet
 
 service dpmd /system/bin/dpmd
-    class late_start
+    class main
     socket dpmd stream 660 root system
 
 service irsc_util /system/bin/irsc_util "/etc/sec_config"
     class main
     user root
-    oneshot
 
 service rmt_storage /system/bin/rmt_storage
     class core
@@ -655,14 +647,11 @@ service config_bluetooth /system/bin/sh /init.qcom.bt.sh "onboot"
     class core
     user bluetooth
     group bluetooth system
-    oneshot
 
 service hciattach /system/bin/sh /init.qcom.bt.sh
-    class late_start
+    class main
     user bluetooth
     group bluetooth net_bt_admin
-    disabled
-    oneshot
 
 on property:bluetooth.hciattach=true
     start hciattach
@@ -671,25 +660,19 @@ on property:bluetooth.hciattach=false
     setprop bluetooth.status off
 
 service bt-dun /system/bin/dun-server /dev/smd7 /dev/rfcomm0
-    class late_start
+    class main
     user bluetooth
     group bluetooth net_bt_admin inet
-    disabled
-    oneshot
 
 service btsnoop /system/bin/btsnoop
    user bluetooth
    group bluetooth net_bt_admin sdcard_rw sdcard_r media_rw
-   class late_start
-   disabled
-   oneshot
+   class main
 
 service port-bridge /system/bin/port-bridge /dev/mhi_pipe_32 /dev/ttyGS0
     class main
     user radio system
     group radio system inet
-    disabled
-    oneshot
 
 # QMUX must be in multiple groups to support external process connections
 service qmuxd /system/bin/qmuxd
@@ -717,7 +700,6 @@ service qti /system/vendor/bin/qti
     class main
     user radio
     group radio net_raw qcom_diag usb net_admin
-    disabled
 
 on property:ro.use_data_netmgrd=false
     # netmgr not supported on specific target
@@ -741,8 +723,6 @@ service p2p_supplicant /system/bin/wpa_supplicant \
 #   group wifi inet keystore
     class main
     socket wpa_wlan0 dgram 660 wifi wifi
-    disabled
-    oneshot
 
 service wpa_supplicant /system/bin/wpa_supplicant \
     -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf \
@@ -755,27 +735,19 @@ service wpa_supplicant /system/bin/wpa_supplicant \
     #   group wifi inet keystore
     class main
     socket wpa_wlan0 dgram 660 wifi wifi
-    disabled
-    oneshot
 
 service dhcpcd_wlan0 /system/bin/dhcpcd -ABKLG
-    class late_start
-    disabled
-    oneshot
+    class main
 
 service dhcpcd_p2p /system/bin/dhcpcd -ABKLG
-    class late_start
-    disabled
-    oneshot
+    class main
 
 service iprenew_wlan0 /system/bin/dhcpcd -n
-    class late_start
-    disabled
+    class main
     oneshot
 
 service iprenew_p2p /system/bin/dhcpcd -n
-    class late_start
-    disabled
+    class main
     oneshot
 
 # This starts as root but later drops down to WIFI_AID just like
@@ -784,58 +756,39 @@ service iprenew_p2p /system/bin/dhcpcd -n
 service wlan_logging /system/bin/ptt_socket_app -d
     user root
     class main
-    disabled
     group wifi log
-    oneshot
 
 service ptt_ffbm /system/bin/ptt_socket_app -f -d
     user root
     group root
-    disabled
-    oneshot
 
 service cnss_diag /system/bin/cnss_diag -q -f
-    class late_start
+    class main
     user root
     group root
-    oneshot
 
 service cnss-daemon /system/bin/cnss-daemon -n -l
-    class late_start
+    class main
 
 service dhcpcd_bt-pan /system/bin/dhcpcd -BKLG
-    class late_start
-    disabled
-    oneshot
+    class main
 
 service iprenew_bt-pan /system/bin/dhcpcd -n
-    class late_start
-    disabled
-    oneshot
+    class main
 
 service dhcpcd_bnep0 /system/bin/dhcpcd -BKLG
-    disabled
-    oneshot
 
 service dhcpcd_bnep1 /system/bin/dhcpcd -BKLG
-    disabled
-    oneshot
 
 service dhcpcd_bnep2 /system/bin/dhcpcd -BKLG
-    disabled
-    oneshot
 
 service dhcpcd_bnep3 /system/bin/dhcpcd -BKLG
-    disabled
-    oneshot
 
 service dhcpcd_bnep4 /system/bin/dhcpcd -BKLG
-    disabled
-    oneshot
 
 service loc_launcher /system/bin/loc_launcher
     #loc_launcher will start as root and set its uid to gps
-    class late_start
+    class main
     group gps inet net_raw qcom_diag net_admin wifi
 
 on property:hw.fm.init=1
@@ -845,16 +798,14 @@ on property:hw.fm.init=0
     write /sys/module/radio_iris_transport/parameters/fmsmd_set 0
 
 service atfwd /system/bin/ATFWD-daemon
-    class late_start
+    class main
     user system
     group system radio
 
 service hostapd /system/bin/hostapd -dd /data/misc/wifi/hostapd.conf
-    class late_start
+    class main
     user root
     group root
-    oneshot
-    disabled
 
 on property:ro.data.large_tcp_window_size=true
     # Adjust socket buffer to enlarge TCP receive window for high bandwidth (e.g. DO-RevB)
@@ -874,42 +825,34 @@ service ril-daemon1 /system/bin/rild -c 2
     socket rild-debug2 stream 660 radio system
     user root
     group radio cache inet misc audio sdcard_rw sensors qcom_diag log net_raw diag
-    disabled
 
 service rild1-wrapper /system/bin/sh /init.qcom.ril.sh
-    class late_start
+    class main
     user root
     group root
-    oneshot
 
 service ssr_diag /system/bin/ssr_diag
-    class late_start
+    class main
     user system
     group system
-    disabled
 
 service diag_mdlog_start /system/bin/diag_mdlog
-    class late_start
+    class main
     user shell
     group system qcom_diag sdcard_rw sdcard_r media_rw
-    disabled
-    oneshot
 
 service diag_mdlog_stop /system/bin/diag_mdlog -k
-    class late_start
+    class main
     user shell
     group system qcom_diag sdcard_rw sdcard_r media_rw
-    disabled
-    oneshot
 
 service msm_irqbalance /system/bin/msm_irqbalance -f /system/vendor/etc/msm_irqbalance.conf
     class core
     user root
     group root
-    writepid /dev/cpuset/system-background/tasks
 
 service fidodaemon /system/vendor/bin/fidodaemon
-    class late_start
+    class main
     user system
     group system
 
@@ -917,13 +860,10 @@ service fidodaemon /system/vendor/bin/fidodaemon
 service cs-early-boot /system/bin/sh /persist/coresight/qdss.agent.sh early-boot /init.qcom.debug.sh
     class core
     user root
-    oneshot
 
 # Coresight post boot servive
 service cs-post-boot /system/bin/sh /persist/coresight/qdss.agent.sh
     user root
-    disabled
-    oneshot
 
 on property:sys.boot_completed=1
     start cs-post-boot
@@ -936,7 +876,7 @@ on property:sys.dbg.coresight.enable=0
 
 # Start Sensor daemon
 service motosh /system/bin/motosh boot
-    class late_start
+    class main
     user compass
     group compass misc input
     oneshot
@@ -952,7 +892,6 @@ service mmi-laser-sh  /init.mmi.laser.sh
     class core
     user root
     oneshot
-    disabled
 
 on property:sys.boot_completed=1
     start mmi-laser-sh
@@ -967,13 +906,11 @@ service oem-hw-sh /init.oem.hw.sh
     class core
     user root
     oneshot
-    disabled
 
 service touch-dead-sh /init.oem.hw.sh -f
     class main
     user root
     oneshot
-    disabled
 
 service touch-ready-sh /init.oem.hw.sh -r
     class main
@@ -985,19 +922,17 @@ service oem-hw-config-sh /init.oem.hw.sh -p
     class main
     user root
     oneshot
-    disabled
 
 on property:hw.touch.status="dead"
-    # start touch-dead-sh
+start touch-dead-sh
 
 on property:hw.touch.status="ready"
-    # start touch-ready-sh
+start touch-ready-sh
 
 service batt_health /system/bin/batt_health
-    class late_start
+    class main
     user mot_pwric
     group mot_pwric cache net_admin log
-    disabled
 
 on property:sys.boot_completed=1
     start batt_health
@@ -1010,8 +945,6 @@ service charge_only_mode /system/bin/charge_only_mode
 service ftmipcd /system/bin/ftmipcd
     user radio
     group radio net_raw inet qcom_diag
-    disabled
-    oneshot
 
 service atvc_core /system/bin/dbvc_atvc_property_set
     class core
@@ -1020,7 +953,7 @@ service atvc_core /system/bin/dbvc_atvc_property_set
     oneshot
 
 service atvc /system/bin/dbvc_atvc_property_set
-    class late_start
+    class main
     user mot_atvc
     group mot_tpapi
     oneshot
@@ -1028,12 +961,10 @@ service atvc /system/bin/dbvc_atvc_property_set
 service qe /xbin/qe /system
     class main
     oneshot
-    disabled
 
 service qe_broadcast /xbin/qe /system -b
     class main
     oneshot
-    disabled
 
 on property:persist.qe.trigger=1
     start qe_broadcast
@@ -1048,14 +979,13 @@ on property:ro.bootmode=mot-factory
     start ftmipcd
 
 on property:persist.mot.demo_mode_charging=1
-    write /sys/class/power_supply/battery/device/force_demo_mode 1
+    write /sys/class/power_supply/battery/device/force_demo_mode 0
 
 service mbm_spy /system/bin/mbm_spy
-    class late_start
+    class main
     user system
     group system
     oneshot
-    disabled
 
 on property:sys.boot_completed=1
     start mbm_spy
@@ -1072,31 +1002,27 @@ on property:ro.debuggable=1
     chmod 0664 /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 
 service hw_revs /system/bin/hardware_revisions.sh
-    class late_start
+    class main
     user system
     group system
     oneshot
 
 service dropboxd /system/bin/dropboxd
-    class late_start
+    class main
     user diag
     group diag
 
 # DHCP service for Ethernet
 service dhcpcd_eth0 /system/bin/dhcpcd -G
-    class late_start
-    disabled
+    class main
     oneshot
 
 service iprenew_eth0 /system/bin/dhcpcd -nBK
-    class late_start
-    disabled
-    oneshot
+    class main
 
-service thermal-com /system/vendor/bin/thermal-engine --minimode
+service thermal-com /system/vendor/bin/thermal-engine
     class main
     user root
-    disabled
 
 service esdpll /system/bin/esdpll -w
     class main
@@ -1107,7 +1033,6 @@ service emmc_ffu /system/bin/emmc_ffu.sh
     user root
     class core
     oneshot
-    disabled
 
 on property:sys.boot_completed=1
     start emmc_ffu
@@ -1129,7 +1054,6 @@ service imsdatadaemon /system/bin/imsdatadaemon
     user system
     socket ims_datad stream 0660 system radio
     group system wifi radio inet net_raw log diag net_admin
-    disabled
 
 on property:sys.ims.QMI_DAEMON_STATUS=1
     start imsdatadaemon
@@ -1139,23 +1063,20 @@ service ims_rtp_daemon /system/bin/ims_rtp_daemon
    user system
    socket ims_rtpd stream 0660 system radio
    group radio net_raw diag diag inet log
-   disabled
 
 service imscmservice /system/bin/imscmservice
    class main
    user system
    group radio net_raw diag diag log
-   disabled
 
 on property:sys.ims.DATA_DAEMON_STATUS=1
     start ims_rtp_daemon
     start imscmservice
 
 service fingerprintd /system/bin/fingerprintd
-    class late_start
+    class main
     user system
     group fingerp
-    disabled
 
 on property:ro.hw.fps=true
     start fingerprintd
@@ -1167,10 +1088,9 @@ service setup_shutdown /system/bin/setup_shutdown.sh
 
 #start camera server as daemon
 service qcamerasvr /system/bin/mm-qcamera-daemon
-   class late_start
+   class main
    user camera
    group camera system inet input graphics
-   writepid /dev/cpuset/system-background/tasks
 
 # Allow usb charging to be disabled peristently
 on property:persist.usb.chgdisabled=1
@@ -1190,8 +1110,7 @@ service per_mgr /system/bin/pm-service
     group system net_raw
 
 service ppd /system/vendor/bin/mm-pp-daemon
-    class late_start
-    disabled
+    class main
     user system
     socket pps stream 0660 system system
     group system graphics
@@ -1217,8 +1136,6 @@ service perfd /system/vendor/bin/perfd
    class main
    user root
    socket perfd seqpacket 0666 root system
-   disabled
-   writepid /dev/cpuset/system-background/tasks
 
 service thermal-engine /system/vendor/bin/thermal-engine
     class main
@@ -1229,12 +1146,12 @@ service thermal-engine /system/vendor/bin/thermal-engine
     group root
 
 service time_daemon /system/bin/time_daemon
-    class late_start
+    class main
     user root
     group root
 
 service audiod /system/bin/audiod
-    class late_start
+    class main
     user system
     group system
 
